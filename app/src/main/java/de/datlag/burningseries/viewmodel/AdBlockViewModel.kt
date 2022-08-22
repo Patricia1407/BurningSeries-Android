@@ -2,8 +2,9 @@ package de.datlag.burningseries.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hadiyarajesh.flower.Resource
+import com.hadiyarajesh.flower_core.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.datlag.burningseries.common.data
 import de.datlag.network.adblock.AdBlockRepository
 import io.michaelrocks.paranoid.Obfuscate
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ class AdBlockViewModel @Inject constructor(
         val defaultList = readInputStream(fallbackStream)
         repository.getAdBlockList().collect {
             when (it.status) {
-                Resource.Status.SUCCESS -> {
+                is Resource.Status.SUCCESS -> {
                     val combinedList: MutableSet<String> = mutableSetOf()
                     combinedList.addAll(defaultList)
                     val fetchedList = it.data?.let { stream -> readInputStream(stream) } ?: setOf()

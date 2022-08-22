@@ -21,7 +21,7 @@ import com.bumptech.glide.Glide
 import com.devs.readmoreoption.ReadMoreOption
 import com.google.android.material.chip.Chip
 import com.google.android.material.snackbar.Snackbar
-import com.hadiyarajesh.flower.Resource
+import com.hadiyarajesh.flower_core.Resource
 import com.kttdevelopment.mal4j.anime.AnimePreview
 import dagger.hilt.android.AndroidEntryPoint
 import de.datlag.burningseries.R
@@ -262,7 +262,7 @@ class SeriesFragment : AdvancedFragment(R.layout.fragment_series) {
 
     private fun listenSeriesStatus() = burningSeriesViewModel.seriesStatus.distinctUntilChanged().launchAndCollect {
         when (it) {
-            Resource.Status.LOADING -> {
+            is Resource.Status.LOADING -> {
                 safeContext.warningSnackbar(binding.root, R.string.loading_series, Snackbar.LENGTH_SHORT).setAnchorView(extendedFab).show()
             }
             is Resource.Status.ERROR -> {
@@ -552,14 +552,14 @@ class SeriesFragment : AdvancedFragment(R.layout.fragment_series) {
         val current = burningSeriesViewModel.currentSeriesData
         if (view != null && current != null) {
             when (it.status) {
-                Resource.Status.LOADING -> {
+                is Resource.Status.LOADING -> {
                     safeContext.warningSnackbar(binding.root, R.string.check_stream, Snackbar.LENGTH_SHORT).setAnchorView(extendedFab).show()
                 }
                 is Resource.Status.ERROR -> {
                     safeContext.errorSnackbar(binding.root, R.string.no_stream, Snackbar.LENGTH_LONG).setAnchorView(extendedFab).show()
                     noStreamSourceDialog(item.episode.href)
                 }
-                Resource.Status.SUCCESS -> {
+                is Resource.Status.SUCCESS -> {
                     val list = it.data ?: listOf()
                     if (list.isEmpty()) {
                         safeContext.errorSnackbar(binding.root, R.string.no_stream, Snackbar.LENGTH_LONG).setAnchorView(extendedFab).show()
@@ -569,6 +569,7 @@ class SeriesFragment : AdvancedFragment(R.layout.fragment_series) {
                         getVideoSources(item.episode, list)
                     }
                 }
+                is Resource.Status.EMPTY -> { }
             }
         }
     }

@@ -1,11 +1,13 @@
 package de.datlag.network.github
 
 import com.apollographql.apollo3.ApolloClient
-import com.hadiyarajesh.flower.Resource
-import com.hadiyarajesh.flower.networkResource
+import com.hadiyarajesh.flower_core.Resource
+import com.hadiyarajesh.flower_core.networkResource
 import de.datlag.model.Constants
 import de.datlag.model.github.Release
 import de.datlag.model.github.User
+import de.jensklingenberg.ktorfit.Ktorfit
+import de.jensklingenberg.ktorfit.create
 import io.michaelrocks.paranoid.Obfuscate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -16,18 +18,20 @@ import javax.inject.Named
 
 @Obfuscate
 class GitHubRepository @Inject constructor(
-    private val service: GitHub,
+    @Named("ktorGitHub") private val ktor: Ktorfit,
     @Named("githubApollo") private val apolloClient: ApolloClient
 ) {
 
+    val service = ktor.create<GitHub>()
+
     fun getReleases(): Flow<List<Release>> = flow<List<Release>> {
         networkResource(
-            fetchFromRemote = {
+            makeNetworkRequest = {
                 service.getReleases()
             }
         ).collect {
             when (it.status) {
-                Resource.Status.SUCCESS -> emit((it.data ?: listOf()).toMutableList().filterNot { release -> release.isDraft })
+                is Resource.Status.SUCCESS -> emit(((it.status as Resource.Status.SUCCESS).data).toMutableList().filterNot { release -> release.isDraft })
                 else -> emit(emptyList())
             }
         }
@@ -35,12 +39,12 @@ class GitHubRepository @Inject constructor(
 
     fun getUser(token: String): Flow<User?> = flow {
         networkResource(
-            fetchFromRemote = {
+            makeNetworkRequest = {
                 service.getUser("token $token")
             }
         ).collect {
             when (it.status) {
-                Resource.Status.SUCCESS -> emit(it.data)
+                is Resource.Status.SUCCESS -> emit((it.status as Resource.Status.SUCCESS).data)
                 is Resource.Status.ERROR -> emit(null)
                 else -> {  }
             }
@@ -55,12 +59,12 @@ class GitHubRepository @Inject constructor(
     }.flowOn(Dispatchers.IO)
 
     fun isContributor(login: String, token: String): Flow<Boolean> = flow {
-        networkResource(fetchFromRemote = {
+        networkResource(makeNetworkRequest = {
             service.getContributors("token $token")
         }).collect {
             when (it.status) {
-                Resource.Status.SUCCESS -> {
-                    val contributors = it.data ?: listOf()
+                is Resource.Status.SUCCESS -> {
+                    val contributors = (it.status as Resource.Status.SUCCESS).data
                     emit(contributors.any { user -> user.login.equals(login, true) })
                 }
                 is Resource.Status.ERROR -> {

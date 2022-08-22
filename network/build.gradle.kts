@@ -1,70 +1,30 @@
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
-    id("kotlin-kapt")
-    id("io.michaelrocks.paranoid")
-    id("com.apollographql.apollo3") version "3.3.2"
-}
-
-android {
-    compileSdk = Configuration.compileSdk
-    buildToolsVersion = Configuration.buildTools
-
-    defaultConfig {
-        minSdk = Configuration.minSdk
-        targetSdk = Configuration.targetSdk
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = true
-            isJniDebuggable = false
-            isRenderscriptDebuggable = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-    }
-    compileOptions {
-        sourceCompatibility = CompileOptions.sourceCompatibility
-        targetCompatibility = CompileOptions.targetCompatibility
-    }
-    kotlinOptions {
-        jvmTarget = CompileOptions.jvmTarget
-    }
+    kotlin("jvm")
+    id("com.apollographql.apollo3") version "3.5.0"
+    id("com.google.devtools.ksp") version "1.7.10-1.0.6"
 }
 
 dependencies {
-    implementation(project(mapOf("path" to ":model")))
-    implementation(project(mapOf("path" to ":database")))
-    implementation(project(mapOf("path" to ":datastore")))
+    // implementation(project(mapOf("path" to ":model")))
+    // implementation(project(mapOf("path" to ":database")))
+    // implementation(project(mapOf("path" to ":datastore")))
 
-    implementation("androidx.core:core-ktx:1.8.0")
-    implementation("androidx.appcompat:appcompat:1.4.2")
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.3")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.4.0")
-    
-    api("io.github.hadiyarajesh:flower:2.0.3")
-    api("com.squareup.retrofit2:retrofit:2.9.0") {
-        exclude("com.squareup.okhttp3", "okhttp")
-        exclude("com.squareup.okhttp3", "logging-interceptor")
-    }
-    api("com.squareup.okhttp3", "okhttp").version {
-        strictly("4.10.0")
-    }
-    api("com.squareup.okhttp3", "logging-interceptor").version {
-        strictly("4.10.0")
-    }
     implementation("javax.inject:javax.inject:1")
     implementation("org.jsoup:jsoup:1.15.2")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.3")
-    api("com.kttdevelopment:mal4j:2.8.1")
-    api("com.apollographql.apollo3:apollo-runtime:3.3.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
+    api("com.kttdevelopment:mal4j:2.9.0")
+    api("com.apollographql.apollo3:apollo-runtime:3.5.0")
 
     implementation("dev.datlag.jsunpacker:jsunpacker:1.0.1")
+
+    api("dev.datlag.flower-ktorfit:flower-ktorfit:3.0.0-beta02")
+    api("io.ktor:ktor-client-android:2.0.3")
+    api("io.ktor:ktor-client-cio:2.0.3")
+    api("io.ktor:ktor-client-content-negotiation:2.0.3")
+    api("io.ktor:ktor-serialization-kotlinx-json:2.0.3")
+    ksp("de.jensklingenberg.ktorfit:ktorfit-ksp:1.0.0-beta09")
 }
 
 apollo {

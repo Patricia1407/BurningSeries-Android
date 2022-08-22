@@ -1,8 +1,8 @@
 package de.datlag.network.burningseries
 
-import com.hadiyarajesh.flower.Resource
-import com.hadiyarajesh.flower.networkBoundResource
-import com.hadiyarajesh.flower.networkResource
+import com.hadiyarajesh.flower_core.Resource
+import com.hadiyarajesh.flower_core.dbBoundResource
+import com.hadiyarajesh.flower_core.networkResource
 import de.datlag.database.burningseries.BurningSeriesDao
 import de.datlag.model.Constants
 import de.datlag.model.burningseries.Cover
@@ -23,6 +23,8 @@ import de.datlag.model.burningseries.stream.Stream
 import de.datlag.model.common.calculateScore
 import de.datlag.model.video.ScrapeHoster
 import de.datlag.network.common.toInt
+import de.jensklingenberg.ktorfit.Ktorfit
+import de.jensklingenberg.ktorfit.create
 import io.michaelrocks.paranoid.Obfuscate
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -37,11 +39,13 @@ import javax.inject.Named
 
 @Obfuscate
 class BurningSeriesRepository @Inject constructor(
-	private val service: BurningSeries,
+	@Named("ktorBS") private val ktor: Ktorfit,
 	private val burningSeriesDao: BurningSeriesDao,
 	@Named("coversDir") private val coversDir: File,
 	val jsonBuilder: Json
 ) {
+
+	val service = ktor.create<BurningSeries>()
 
 	fun getHomeData(): Flow<Resource<HomeData>> = flow {
 		val firstOrNullEpisodes = burningSeriesDao.getAllLatestEpisode().firstOrNull()
@@ -56,7 +60,7 @@ class BurningSeriesRepository @Inject constructor(
 		}))
 
 		val currentRequest = Clock.System.now().epochSeconds
-		networkBoundResource(
+		dbBoundResource(
 			fetchFromLocal = {
 				flow<Pair<List<LatestEpisodeWithInfoFlags>, List<LatestSeriesWithCover>>> {
 					val emitEpisodes: MutableList<LatestEpisodeWithInfoFlags> = burningSeriesDao.getAllLatestEpisode().first().sortedWith(
@@ -86,42 +90,45 @@ class BurningSeriesRepository @Inject constructor(
 					}
 				}.flowOn(Dispatchers.IO)
 			},
-			shouldFetchFromRemote = {
+			shouldMakeNetworkRequest = {
 				it == null || it.first.isEmpty() || it.second.isEmpty() || it.first.any { episode ->
 					currentRequest - Constants.HOUR_IN_SECONDS >= episode.latestEpisode.updatedAt
 				} || it.second.any { series ->
 					currentRequest - Constants.HOUR_IN_SECONDS >= series.latestSeries.updatedAt
 				}
 			},
-			fetchFromRemote = {
+			makeNetworkRequest = {
 				service.getHomeData()
 			},
-			saveRemoteData = {
+			saveRequestData = {
 				if (it.latestEpisodes.isNotEmpty() && it.latestSeries.isNotEmpty()) {
 					saveHomeData(it)
 				}
 			}
 		).collect {
 			when (it.status) {
-				Resource.Status.LOADING -> {
-					if (it.data != null) {
+				is Resource.Status.LOADING -> {
+					val status = it.status as Resource.Status.LOADING
+					if (status.data != null) {
 						emit(Resource.loading(HomeData(
-							mapLatestEpisodeWithInfoToLatestEpisode(it.data!!.first),
-							mapLatestSeriesWithCoverToLatestSeries(it.data!!.second)
+							mapLatestEpisodeWithInfoToLatestEpisode(status.data!!.first),
+							mapLatestSeriesWithCoverToLatestSeries(status.data!!.second)
 						)))
 					}
 				}
-				Resource.Status.SUCCESS -> {
-					if (it.data != null) {
-						emit(Resource.success(HomeData(
-							mapLatestEpisodeWithInfoToLatestEpisode(it.data!!.first),
-							mapLatestSeriesWithCoverToLatestSeries(it.data!!.second)
-						)))
-					}
+				is Resource.Status.SUCCESS -> {
+					val status = it.status as Resource.Status.SUCCESS
+					emit(Resource.success(HomeData(
+						mapLatestEpisodeWithInfoToLatestEpisode(status.data.first),
+						mapLatestSeriesWithCoverToLatestSeries(status.data.second)
+					)))
 				}
 				is Resource.Status.ERROR -> {
 					val errorStatus = it.status as Resource.Status.ERROR
-					emit(Resource.error<HomeData>(errorStatus.message, errorStatus.statusCode))
+					emit(Resource.error<HomeData>(errorStatus.message, errorStatus.statusCode, null))
+				}
+				is Resource.Status.EMPTY -> {
+					emit(Resource.empty<HomeData>())
 				}
 			}
 		}
@@ -227,17 +234,17 @@ class BurningSeriesRepository @Inject constructor(
 
 	fun getSeriesData(href: String, hrefTitle: String, forceLoad: Boolean = false): Flow<Resource<SeriesWithInfo?>> = flow {
 		val currentRequest = Clock.System.now().epochSeconds
-		emitAll(networkBoundResource(
+		emitAll(dbBoundResource(
 			fetchFromLocal = {
 				burningSeriesDao.getSeriesWithInfoBestMatch(hrefTitle)
 			},
-			shouldFetchFromRemote = {
+			shouldMakeNetworkRequest = {
 				it == null || forceLoad || currentRequest - Constants.HOUR_IN_SECONDS >= it.series.updatedAt || it.episodes.isEmpty()
 			},
-			fetchFromRemote = {
+			makeNetworkRequest = {
 				service.getSeriesData(href)
 			},
-			saveRemoteData = { series ->
+			saveRequestData = { series ->
 				saveSeriesData(series.apply {
 					this.href = href
 				})
@@ -342,17 +349,17 @@ class BurningSeriesRepository @Inject constructor(
 
 			if (first.isEmpty() || first.any { currentRequest - Constants.DAY_IN_SECONDS >= it.genre.updatedAt }) {
 				emit(Resource.loading(first))
-				emitAll(networkBoundResource(
+				emitAll(dbBoundResource(
 					fetchFromLocal = {
 						burningSeriesDao.getAllSeries(pagination)
 					},
-					shouldFetchFromRemote = {
+					shouldMakeNetworkRequest = {
 						it.isNullOrEmpty() || it.any { item -> currentRequest - Constants.DAY_IN_SECONDS >= item.genre.updatedAt }
 					},
-					fetchFromRemote = {
+					makeNetworkRequest = {
 						service.getAllSeries()
 					},
-					saveRemoteData = { all ->
+					saveRequestData = { all ->
 						saveGenreData(all)
 					}
 				))
@@ -401,24 +408,23 @@ class BurningSeriesRepository @Inject constructor(
 
 	fun getSeriesCount() = flow<Long?> {
 		networkResource(
-			fetchFromRemote = {
+			makeNetworkRequest = {
 				service.getSeriesCount()
 			}
 		).collect {
-			emit(it.data?.toLongOrNull())
+			val count = ((it.status as? Resource.Status.SUCCESS<String>)?.data ?: (it.status as? Resource.Status.LOADING)?.data ?: (it.status as? Resource.Status.ERROR)?.data)?.toLongOrNull()
+			emit(count)
 		}
 	}.flowOn(Dispatchers.IO).distinctUntilChanged()
 
 	fun saveScrapedHoster(scraped: ScrapeHoster): Flow<Boolean> = flow {
-		val entry = jsonBuilder.encodeToString(
-			scraped
-		).toRequestBody(Constants.MEDIATYPE_JSON.toMediaType())
-		networkResource(fetchFromRemote = {
-			service.saveScraped(entry)
+		networkResource(makeNetworkRequest = {
+			service.saveScraped(scraped)
 		}).collect {
 			when (it.status) {
-				Resource.Status.SUCCESS -> {
-					if ((it.data?.failed ?: 0) <= 0) {
+				is Resource.Status.SUCCESS -> {
+					val status = it.status as Resource.Status.SUCCESS
+					if ((status.data.failed) <= 0) {
 						emit(true)
 					} else {
 						emit(false)
@@ -431,24 +437,19 @@ class BurningSeriesRepository @Inject constructor(
 	}.flowOn(Dispatchers.IO)
 
 	fun getStreams(hrefList: List<String>) = flow<Resource<List<Stream>>> {
-		val entries = jsonBuilder.encodeToString(
-			hrefList
-		).toRequestBody(Constants.MEDIATYPE_JSON.toMediaType())
-		emitAll(networkResource(fetchFromRemote = {
-			service.getStreams(entries)
+		emitAll(networkResource(makeNetworkRequest = {
+			service.getStreams(hrefList)
 		}))
 	}.flowOn(Dispatchers.IO)
 
 	fun patchStream(stream: ScrapeHoster): Flow<Boolean> = flow<Boolean> {
-		val entry = jsonBuilder.encodeToString(
-			stream
-		).toRequestBody(Constants.MEDIATYPE_JSON.toMediaType())
-		networkResource(fetchFromRemote = {
-			service.patchStream(entry)
+		networkResource(makeNetworkRequest = {
+			service.patchStream(stream)
 		}).collect {
 			when (it.status) {
-				Resource.Status.SUCCESS -> {
-					if ((it.data?.failed ?: 0) <= 0) {
+				is Resource.Status.SUCCESS -> {
+					val status = it.status as Resource.Status.SUCCESS
+					if ((status.data.failed) <= 0) {
 						emit(true)
 					} else {
 						false

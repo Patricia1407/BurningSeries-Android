@@ -2,8 +2,9 @@ package de.datlag.burningseries.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hadiyarajesh.flower.Resource
+import com.hadiyarajesh.flower_core.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.datlag.burningseries.common.data
 import de.datlag.burningseries.common.indexOfLastWithItem
 import de.datlag.burningseries.common.toMutableSharedFlow
 import de.datlag.model.burningseries.Cover
@@ -34,7 +35,7 @@ class BurningSeriesViewModel @Inject constructor(
 
 	var showedHelpImprove: Boolean = false
 
-	private val _homeData: MutableStateFlow<Resource<HomeData>> = MutableStateFlow(Resource.loading(null))
+	private val _homeData: MutableStateFlow<Resource<HomeData>> = MutableStateFlow(Resource.empty())
 	val homeData = _homeData.asSharedFlow()
 	private val _favorites: MutableSharedFlow<List<SeriesWithInfo>> = repository.getSeriesFavorites().toMutableSharedFlow(viewModelScope)
 	val favorites = _favorites.asSharedFlow()
@@ -52,10 +53,10 @@ class BurningSeriesViewModel @Inject constructor(
 	val allSeriesPagination = _allSeriesPagination.asSharedFlow()
 	val allSeriesPaginatedFlat = _allSeriesPaginatedFlat.asSharedFlow()
 
-	private val _seriesStatus: MutableStateFlow<Resource.Status> = MutableStateFlow(Resource.Status.LOADING)
+	private val _seriesStatus: MutableStateFlow<Resource.Status<SeriesWithInfo?>> = MutableStateFlow(Resource.Status.EMPTY())
 	private val _seriesData: MutableStateFlow<SeriesWithInfo?> = MutableStateFlow(null)
 
-	val seriesStatus: SharedFlow<Resource.Status> = _seriesStatus.asSharedFlow()
+	val seriesStatus: SharedFlow<Resource.Status<SeriesWithInfo?>> = _seriesStatus.asSharedFlow()
 	val seriesData: SharedFlow<SeriesWithInfo?> = _seriesData.asSharedFlow()
 
 	val currentSeriesData: SeriesWithInfo?

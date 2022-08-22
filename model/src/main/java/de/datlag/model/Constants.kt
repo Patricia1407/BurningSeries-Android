@@ -17,7 +17,7 @@ object Constants {
 
 	const val API_BS_TO_BASE = "${PROTOCOL_HTTPS}${HOST_BS_TO}"
 
-	const val API_GITHUB = "${PROTOCOL_HTTPS}api.${HOST_GITHUB}"
+	const val API_GITHUB = "${PROTOCOL_HTTPS}api.${HOST_GITHUB}/"
 
 	const val BS_TO_HEADER = "${API_BS_TO_BASE}/public/images/header.png"
 	const val URL_ADBLOCK_LIST = "https://raw.githubusercontent.com/Openadblockserverlist/adblockserverlist/master/adblockserverlist.txt"

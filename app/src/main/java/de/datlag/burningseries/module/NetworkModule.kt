@@ -1,8 +1,7 @@
 package de.datlag.burningseries.module
 
 import com.apollographql.apollo3.ApolloClient
-import com.hadiyarajesh.flower.calladpater.FlowCallAdapterFactory
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.hadiyarajesh.flower_ktorfit.FlowerResponseConverter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,14 +11,18 @@ import de.datlag.network.adblock.AdBlock
 import de.datlag.network.burningseries.BurningSeries
 import de.datlag.network.github.GitHub
 import de.datlag.network.video.VideoScraper
+import de.jensklingenberg.ktorfit.Ktorfit
+import de.jensklingenberg.ktorfit.create
+import io.ktor.client.*
+import io.ktor.client.engine.android.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
 import io.michaelrocks.paranoid.Obfuscate
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Converter
-import retrofit2.Retrofit
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
@@ -36,12 +39,6 @@ object NetworkModule {
 		encodeDefaults = true
 	}
 
-	private val loggingInterceptor = HttpLoggingInterceptor {
-		Timber.w(it)
-	}.apply {
-		level = HttpLoggingInterceptor.Level.BASIC
-	}
-
 	@Provides
 	@Singleton
 	fun provideJsonBuilder(): Json = jsonBuilder
@@ -52,39 +49,24 @@ object NetworkModule {
 
 	@Provides
 	@Singleton
-	@Named(Constants.NAMED_JSON_CONVERTER)
-	fun provideConverterFactory(
-		@Named(Constants.NAMED_JSON) json: MediaType
-	): Converter.Factory = jsonBuilder.asConverterFactory(json)
+	fun provideHttpClient() = HttpClient(Android) {
+		install(HttpTimeout) {
+			connectTimeoutMillis = TimeUnit.MINUTES.toMillis(3)
+			requestTimeoutMillis = TimeUnit.MINUTES.toMillis(3)
+			socketTimeoutMillis = TimeUnit.MINUTES.toMillis(3)
+		}
+		install(ContentNegotiation) {
+			json(jsonBuilder)
+		}
+	}
 
 	@Provides
 	@Singleton
-	fun provideCallFactory(): OkHttpClient = OkHttpClient.Builder()
-		.connectTimeout(3, TimeUnit.MINUTES)
-		.readTimeout(3, TimeUnit.MINUTES)
-		.writeTimeout(3, TimeUnit.MINUTES)
-		.addInterceptor(loggingInterceptor)
-		.build()
-
-	@Provides
-	@Singleton
-	@Named(Constants.NAMED_JSON_RETROFIT)
-	fun provideRetrofit(
-		@Named(Constants.NAMED_JSON_CONVERTER) json: Converter.Factory,
-		httpClient: OkHttpClient
-	): Retrofit.Builder = Retrofit.Builder()
-		.addCallAdapterFactory(FlowCallAdapterFactory())
-		.callFactory(httpClient)
-		.addConverterFactory(json)
-
-	@Provides
-	@Singleton
+	@Named("ktorBS")
 	fun provideBurningSeriesService(
-		@Named(Constants.NAMED_JSON_RETROFIT) builder: Retrofit.Builder
-	): BurningSeries = builder
-		.baseUrl("https://api.datlag.dev")
-		.build()
-		.create(BurningSeries::class.java)
+		client: HttpClient
+	) = Ktorfit("https://api.datlag.dev/", client)
+		.addResponseConverter(FlowerResponseConverter())
 
 	@Provides
 	@Singleton
@@ -92,20 +74,19 @@ object NetworkModule {
 
 	@Provides
 	@Singleton
+	@Named("ktorAdBlock")
 	fun provideAdBlockService(
-		@Named(Constants.NAMED_JSON_RETROFIT) builder: Retrofit.Builder
-	): AdBlock = builder
-		.build()
-		.create(AdBlock::class.java)
+		client: HttpClient
+	) = Ktorfit("/", client)
+		.addResponseConverter(FlowerResponseConverter())
 
 	@Provides
 	@Singleton
+	@Named("ktorGitHub")
 	fun provideGitHubService(
-		@Named(Constants.NAMED_JSON_RETROFIT) builder: Retrofit.Builder
-	): GitHub = builder
-		.baseUrl(Constants.API_GITHUB)
-		.build()
-		.create(GitHub::class.java)
+		client: HttpClient
+	) = Ktorfit(Constants.API_GITHUB, client)
+		.addResponseConverter(FlowerResponseConverter())
 
 	@Provides
 	@Singleton

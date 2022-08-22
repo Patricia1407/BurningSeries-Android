@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import by.kirich1409.viewbindingdelegate.viewBinding
 import com.google.android.material.snackbar.Snackbar
-import com.hadiyarajesh.flower.Resource
+import com.hadiyarajesh.flower_core.Resource
 import dagger.hilt.android.AndroidEntryPoint
 import de.datlag.burningseries.BuildConfig
 import de.datlag.burningseries.R
@@ -29,6 +29,7 @@ import io.michaelrocks.paranoid.Obfuscate
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import timber.log.Timber
 
 @AndroidEntryPoint
 @Obfuscate
@@ -81,7 +82,7 @@ class HomeFragment : AdvancedFragment(R.layout.fragment_home) {
 
 	private fun listenHomeData() = burningSeriesViewModel.homeData.distinctUntilChanged().launchAndCollect {
 		when (it.status) {
-			Resource.Status.LOADING -> {
+			is Resource.Status.LOADING -> {
 				it.data?.let { home ->
 					if (home.latestEpisodes.isNotEmpty()) {
 						binding.episodeLoadingBar.visible()
@@ -110,7 +111,7 @@ class HomeFragment : AdvancedFragment(R.layout.fragment_home) {
 					binding.latestSeriesRecycler.veil()
 				}
 			}
-			Resource.Status.SUCCESS -> {
+			is Resource.Status.SUCCESS -> {
 				binding.episodeLoadingBar.gone()
 				latestEpisodeRecyclerAdapter.submitList((it.data?.latestEpisodes ?: listOf())) {
 					binding.latestEpisodeRecycler.unVeil()
@@ -129,6 +130,7 @@ class HomeFragment : AdvancedFragment(R.layout.fragment_home) {
 				binding.seriesLoadingBar.gone()
 
 				val errorStatus = it.status as Resource.Status.ERROR
+				Timber.e(errorStatus.message)
 				val (stringId, displayRetry) = errorStatus.mapToMessageAndDisplayAction()
 				safeContext.errorSnackbar(binding.root, stringId, Snackbar.LENGTH_LONG).apply {
 					if (displayRetry) {
@@ -138,6 +140,7 @@ class HomeFragment : AdvancedFragment(R.layout.fragment_home) {
 					}
 				}.setAnchorView(extendedFab).show()
 			}
+			is Resource.Status.EMPTY -> { }
 		}
 	}
 
